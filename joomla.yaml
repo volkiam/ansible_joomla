@@ -1,5 +1,5 @@
   - name: Install joomla web site
-    hosts: test
+    hosts: joomla
     become: true
     vars_files:
       - vars.yml
@@ -100,8 +100,7 @@
           dest: /var/www/html/joomla
           remote_src: yes
         notify: change_joomla_permision
-  
-
+        
     handlers:
       - name: sync_time
         shell: ntpdate pool.ntp.br
