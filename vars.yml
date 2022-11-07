@@ -1,0 +1,6 @@
+---
+# Mysql variables for joomla db
+mysql_user: joomlauser
+mysql_password: 1234@qwe
+mysql_database_name: joomla
+mysql_login_unix_socket: /run/mysqld/mysqld.sock

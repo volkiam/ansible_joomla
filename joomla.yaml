@@ -1,0 +1,121 @@
+  - name: Install joomla web site
+    hosts: test
+    become: true
+    vars_files:
+      - vars.yml
+    tasks:
+      - name: Install dependency
+        apt:
+          name: "{{item}}"
+          state: present
+          update_cache: yes
+        loop:
+          - ca-certificates
+          - curl
+          - gnupg2
+
+      - name: Install ntp
+        apt: 
+          pkg: 
+            - ntp 
+            - ntpdate
+          state: present
+        notify: sync_time
+
+      - name: Install mysql
+        apt:
+          pkg:
+            - mysql-server
+            - mysql-client
+            - python3-mysqldb
+            - python3-pip
+          state: present
+          update_cache: true
+
+      - name: Create a new database for joomla
+        community.mysql.mysql_db:
+          name: "{{ mysql_database_name }}"
+          state: present
+          login_unix_socket: "{{ mysql_login_unix_socket }}"
+
+      - name: Create new user with password for joomla db
+        community.mysql.mysql_user:
+          name: "{{ mysql_user }}"
+          password: "{{ mysql_password}}"
+          state: present
+          login_unix_socket: "{{ mysql_login_unix_socket }}"
+          priv: '{{ mysql_database_name }}.*:ALL,GRANT'
+
+      - name: Install apache + php
+        apt:
+          pkg:
+            - apache2
+            - php
+            - php-mysql
+            - libapache2-mod-php
+            - php-mbstring
+            - php-xml
+            - php-zip
+            - python3-pymysql
+          state: present
+          update_cache: true
+
+      - name: Get path to php.ini
+        find:
+          paths: /etc/php
+          file_type: directory
+          recurse: no
+        register: php_ini_path
+
+      - name: Configure apache2
+        lineinfile:
+          path: /etc/apache2/mods-enabled/dir.conf
+          regexp: "^\tDirectoryIndex index.html index.cgi index.pl index.php index.xhtml index.htm$"
+          line: "\tDirectoryIndex index.php index.html index.cgi index.pl index.php index.xhtml index.htm"
+        notify: restart_apache2
+
+      - name: Copy config files and installation joomla zip
+        copy: 
+          src: "{{ item.src }}"
+          dest: "{{ item.dest }}"
+          force: yes
+        loop:
+          - { src: './update/000-default.conf', dest: '/etc/apache2/sites-available/000-default.conf' }
+          - { src: './update/apache2.conf', dest: '/etc/apache2/apache2.conf' }
+          - { src: './update/000-default.conf', dest: "{{ php_ini_path.files[0].path }}/apache2/php.ini" }
+          - { src: './update/Joomla_3.9.28-Stable-Full_Package.zip', dest: "/tmp/Joomla_3.9.28-Stable-Full_Package.zip" }
+        notify: restart_apache2
+
+      - name: Create a directory if it does not exist
+        file:
+          path: /var/www/html/joomla
+          state: directory
+          mode: '0764'
+          owner: www-data
+          group: www-data
+      
+      - name: Unarchive a file that is already on the remote machine
+        unarchive:
+          src: /tmp/Joomla_3.9.28-Stable-Full_Package.zip
+          dest: /var/www/html/joomla
+          remote_src: yes
+        notify: change_joomla_permision
+  
+
+    handlers:
+      - name: sync_time
+        shell: ntpdate pool.ntp.br
+
+      - name: restart_apache2
+        service:
+          name: apache2
+          state: restarted
+
+      - name: change_joomla_permision
+        shell: sudo chown www-data.www-data /var/www/html/joomla/* -R
+
+        
+      
+
+        
+      
